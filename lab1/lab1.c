@@ -4,55 +4,103 @@
 
 typedef struct
 {
-    int flag;
-    char sym;
-}targs;
+    int flag;   /* флаг завершения работы потока */
+    char sym;   /* символ, выводимый потоком */
+} targs;
 
 
+/* Поточная функция №1 */
 void* proc1(void* arg1) 
 {
-    targs* arg = (targs*) arg1;
+    printf("поток 1 начал работу\n"); 
 
-    while (arg->flag == 0) {
-        printf("%c", arg->sym);
-        fflush(stdout);
-        sleep(1);
+    targs* arg = (targs*) arg1; /* приведение универсального указателя к типу targs */
+
+    while (arg->flag == 0)      /* цикл выполняется, пока флаг не установлен */
+    {
+        printf("%c", arg->sym); /* вывод символа в стандартный поток вывода */
+        fflush(stdout);         /* принудительная очистка буфера stdout */
+        sleep(1);               /* приостановка выполнения потока на 1 секунду */
     }
-    puts("Первый поток закончил работу.\r\n");
-    pthread_exit((void*)111);
+
+    printf("\nпоток 1 закончил работу\n"); 
+
+    pthread_exit((void*)111); /* завершение потока и возврат кода завершения 111 */
 }
 
+
+/* Поточная функция №2 */
 void* proc2(void* arg2) 
 {
-    targs* arg = (targs*) arg2;
-    
-    while (arg->flag == 0) {
-        printf("%c", arg->sym);
-        fflush(stdout);
-        sleep(1);
+    printf("поток 2 начал работу\n"); 
+    targs* arg = (targs*) arg2; /* приведение универсального указателя к типу targs */
+
+    while (arg->flag == 0)      /* цикл выполняется, пока флаг не установлен */
+    {
+        printf("%c", arg->sym); /* вывод символа в стандартный поток вывода */
+        fflush(stdout);         /* принудительная очистка буфера stdout */
+        sleep(1);               /* приостановка выполнения потока на 1 секунду */
     }
-    puts("Второй поток закончил работу.\r\n");
-    pthread_exit((void*)222);
+
+    printf("\nпоток 2 закончил работу\n");
+
+    pthread_exit((void*)222); /* завершение потока и возврат кода завершения 222 */
 }
+
 
 int main(void) 
 {
-    pthread_t id1, id2;
-    targs args1, args2;
-    int *exitCode1, *exitCode2;
-    args1.flag = 0; args1.sym = '1';
-    args2.flag = 0; args2.sym = '2';
-    puts("Ожидание нажатия клавиши.\r\n");
-    pthread_create(&id1, NULL, proc1, &args1);
-    pthread_create(&id2, NULL, proc2, &args2);
-    
-    getchar();
-    puts("Клавиша нажата.\r\n");
-    args1.flag = 1;
-    args2.flag = 1;
-    pthread_join(id1, (void**)&exitCode1);
-    pthread_join(id2, (void**)&exitCode2);
-    printf("Код завершения первого потока: %p\r\n", exitCode1);
-    printf("Код завершения второго потока: %p\r\n", exitCode2);
-    return 0;
+    printf("программа начала работу\n");
+
+    pthread_t id1, id2; /* идентификаторы потоков */
+    targs args1, args2; /* структуры аргументов потоков */
+
+    void* exitCode1;    /* переменная для получения кода завершения первого потока */
+    void* exitCode2;    /* переменная для получения кода завершения второго потока */
+
+    args1.flag = 0; 
+    args1.sym = '1';
+
+    args2.flag = 0; 
+    args2.sym = '2';
+
+    /* создание первого потока:
+       id1 – дескриптор потока,
+       NULL – атрибуты по умолчанию,
+       proc1 – поточная функция,
+       &args1 – передаваемые параметры */
+    int rv1 = pthread_create(&id1, NULL, proc1, &args1);
+
+    /* создание второго потока:
+       id2 – дескриптор потока,
+       NULL – атрибуты по умолчанию,
+       proc2 – поточная функция,
+       &args2 – передаваемые параметры */
+    int rv2 = pthread_create(&id2, NULL, proc2, &args2);
+
+    printf("программа ждет нажатия клавиши\n"); 
+
+    getchar(); /* ожидание нажатия клавиши (чтение символа из stdin) */
+
+    printf("клавиша нажата\n"); 
+
+    args1.flag = 1; /* установка флага завершения первого потока */
+    args2.flag = 1; /* установка флага завершения второго потока */
+
+    /* ожидание завершения первого потока:
+       id1 – идентификатор потока,
+       &exitCode1 – получение кода завершения */
+    pthread_join(id1, &exitCode1);
+
+    /* ожидание завершения второго потока:
+       id2 – идентификатор потока,
+       &exitCode2 – получение кода завершения */
+    pthread_join(id2, &exitCode2);
+
+    printf("код завершения первого потока: %ld\n", (long)exitCode1); /* вывод кода завершения */
+    printf("код завершения второго потока: %ld\n", (long)exitCode2); /* вывод кода завершения */
+
+    printf("программа завершила работу\n"); /* сообщение о завершении программы */
+
+    return 0; /* корректное завершение функции main */
 }
