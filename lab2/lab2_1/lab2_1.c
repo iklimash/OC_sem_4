@@ -1,52 +1,50 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <pthread.h>
+#include <stdio.h>      
+#include <unistd.h>     
+#include <pthread.h>    
 
-int flag1 = 0, flag2 = 0;
-int i, j;
+int flag1 = 0, flag2 = 0; // Флаги для остановки потоков
+int i, j;                 // Общие переменные для циклов (используются в потоках)
 
 void* porc1 (void* args)
 {
-    while (flag1 == 0)
+    while (flag1 == 0) // Пока флаг flag1 не изменен, выполняем цикл
     {
-        for (i = 0; i < 10; i++)
+        for (i = 0; i < 10; i++) // Печатаем '1' десять раз
         {
-            printf ("%c", '1');
-            fflush(stdout);
-            sleep(1);
+            printf ("%c", '1');  // Вывод символа '1'
+            fflush(stdout);       // Принудительно очищаем буфер вывода, чтобы символ сразу появился
+            sleep(1);             // Пауза 1 секунда между выводами
         }
-        sleep(1);
-    
+        sleep(1);                 // Дополнительная пауза после цикла
     }
-    pthread_exit(NULL);
+    pthread_exit(NULL);           // Завершение потока
 }
 
 void* porc2 (void* args)
 {
-    while (flag2 == 0)
+    while (flag2 == 0) // Пока флаг flag2 не изменен, выполняем цикл
     {
-        for (i = 0; i < 10; i++)
+        for (i = 0; i < 10; i++) // Печатаем '2' десять раз
         {
-            printf ("%c", '2');
-            fflush(stdout);
-            sleep(1);
+            printf ("%c", '2');  // Вывод символа '2'
+            fflush(stdout);       // Очистка буфера для немедленного вывода
+            sleep(1);             // Пауза 1 секунда
         }
-        sleep(1);
-    
+        sleep(1);                 // Дополнительная пауза после цикла
     }
-    pthread_exit(NULL);
+    pthread_exit(NULL);           // Завершение потока
 }
 
 int main() 
 {
-    pthread_t id1, id2;
-    pthread_create(&id1, NULL, porc1, NULL);
-    pthread_create(&id2, NULL, porc2, NULL);
-    getchar();
-    puts("Клавиша нажата. \r\n");
-    flag1 = 1;
-    flag2 = 2;
-    pthread_join(id1, NULL);
-    pthread_join(id2, NULL);
-    return 0;
+    pthread_t id1, id2;                     // Объявление идентификаторов потоков
+    pthread_create(&id1, NULL, porc1, NULL);// Создание первого потока, выполняющего porc1
+    pthread_create(&id2, NULL, porc2, NULL);// Создание второго потока, выполняющего porc2
+    getchar();                              // Ожидание нажатия клавиши пользователем
+    puts("Клавиша нажата. \r\n");           // Сообщение о том, что клавиша нажата
+    flag1 = 1;                               // Сигнал потоку 1 завершиться
+    flag2 = 2;                               // Сигнал потоку 2 завершиться
+    pthread_join(id1, NULL);                 // Ожидание завершения потока 1
+    pthread_join(id2, NULL);                 // Ожидание завершения потока 2
+    return 0;                                // Завершение программы
 }
