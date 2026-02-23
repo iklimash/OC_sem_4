@@ -11,7 +11,7 @@ int flag1 = 0, flag2 = 0;
 int pipefd[2];
 const char *usesrname;
 
-void proc1(void *args)
+void* proc1(void *args)
 {
     while (!flag1)
     {
@@ -23,21 +23,21 @@ void proc1(void *args)
             continue;
         }
         
-    const char *home_dir = pw->pw_dir;
+        const char *home_dir = pw->pw_dir;
     
-    if (write(pipefd[1], home_dir, strlen(home_dir) + 1) == -1)
-    {
-        if (errno != EAGAIN)
+        if (write(pipefd[1], home_dir, strlen(home_dir) + 1) == -1)
         {
-            perror("Ошибка записи");
+            if (errno != EAGAIN)
+            {
+                perror("Ошибка записи");
+            }
+            sleep(1);
         }
-        sleep(1);
     }
     return NULL;
-    }
 }
 
-void proc2(void *args)
+void* proc2(void *args)
 {
     char buffer[256];
     while (!flag2)
@@ -75,11 +75,11 @@ int main (int args, char* argv[])
         {
             rv = pipe(pipefd);
         }
-        else if (trcmp(argv[1], "2\0") == 0)
+        else if (strcmp(argv[1], "2\0") == 0)
         {
             rv = pipe2(pipefd, O_NONBLOCK);
         }
-        else if (trcmp(argv[1], "3\0") == 0)
+        else if (strcmp(argv[1], "3\0") == 0)
         {
             rv = pipe(pipefd);
             fcntl(pipefd[0], F_SETFL, O_NONBLOCK);
