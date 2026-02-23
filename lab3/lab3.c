@@ -1,7 +1,10 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <string.h>
+#include <signal.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <pwd.h>
@@ -9,13 +12,14 @@
 int flag1 = 0, flag2 = 0;
 
 int pipefd[2];
-const char *usesrname;
+const char *username;
+
 
 void* proc1(void *args)
 {
     while (!flag1)
     {
-        struct passwd *pw = getpwnam(usesrname);
+        struct passwd *pw = getpwnam(username);
         if (pw == NULL)
         {
             perror("Ошибка getpwnam");
@@ -62,6 +66,7 @@ int main (int args, char* argv[])
 {
     pthread_t id1, id2;
     int rv;
+    username = getenv("USER");
 
     if (args == 1)
     {
