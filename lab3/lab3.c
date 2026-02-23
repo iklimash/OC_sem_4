@@ -92,7 +92,7 @@ int main (int args, char* argv[])
     getchar();
     puts("Клавиша нажата.\r\n");
     flag1 = 1;
-    flag2 = 2;
+    flag2 = 1;
     pthread_join(id1,NULL);
     pthread_join(id2,NULL);
     close(pipefd[0]);
