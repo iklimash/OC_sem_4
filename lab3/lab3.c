@@ -1,157 +1,168 @@
 #define _GNU_SOURCE  
-#include <stdio.h>      // printf, perror, puts
-#include <stdlib.h>     // getenv, exit
-#include <unistd.h>     // pipe, read, write, close, sleep
-#include <pthread.h>    // pthread_create, pthread_join
-#include <string.h>     // strcmp, strlen, memset
-#include <signal.h>     // сигнальные типы (не используются напрямую)
-#include <fcntl.h>      // fcntl, O_NONBLOCK
-#include <errno.h>      // errno
-#include <pwd.h>        // getpwnam, struct passwd
+#include <stdio.h>      
+#include <stdlib.h>     
+#include <unistd.h>    
+#include <pthread.h>    
+#include <string.h>     // функции работы со строками: memset, strlen, snprintf
+#include <fcntl.h>      // управление файлами и флагами: O_NONBLOCK, fcntl
+#include <pwd.h>        // работа с информацией о пользователях: struct passwd, getpwnam
+#include <errno.h>      
 
-
+// Глобальные флаги для завершения потоков
 int flag1 = 0, flag2 = 0;
 
-// Дескрипторы pipe:
-// pipefd[0] — дескриптор для чтения
-// pipefd[1] — дескриптор для записи
+// Глобальный дескриптор канала (pipe)
+// pipefd[0] — для чтения, pipefd[1] — для записи
 int pipefd[2];
 
-// Указатель на имя пользователя (получается из переменной окружения USER)
-const char *username;
-
-
-// Поток 1: получает домашний каталог пользователя
-// и записывает его в pipe
-void* proc1(void *args)
+/* Первый поток — получение домашнего каталога пользователя и запись в pipe */
+void* proc1(void* args) 
 {
+    char buffer[256]; // буфер для хранения пути домашнего каталога
 
-    while (!flag1)
-    {
-        // Получение структуры passwd по имени пользователя.
-        struct passwd *pw = getpwnam(username);
+    while (!flag1) 
+    {  
 
-        if (pw == NULL)
+        // Получаем имя пользователя, выполняющего процесс
+        char *username = getlogin();
+        if (username == NULL) 
         {
-            perror("Ошибка getpwnam");
-            sleep(1);          // Пауза перед повторной попыткой
-            continue;          // Переход к следующей итерации цикла
-        }
-        
-        // pw_dir — домашний каталог пользователя
-        const char *home_dir = pw->pw_dir;
-    
-        // Запись строки в pipe.
-        // strlen + 1 — передаём вместе с завершающим '\0'
-        if (write(pipefd[1], home_dir, strlen(home_dir) + 1) == -1)
-        {
-            // Если ошибка не связана с неблокирующим режимом
-            if (errno != EAGAIN)
-            {
-                perror("Ошибка записи");
-            }
-
-            // Если pipe заполнен (O_NONBLOCK),
-            // write вернёт -1 и errno = EAGAIN
+            // Если getlogin() вернул NULL — выводим ошибку и ждём 1 секунду
+            perror("getlogin");
             sleep(1);
+            continue; // продолжаем цикл
         }
+
+        // Получаем структуру passwd по имени пользователя
+        struct passwd *pwd = getpwnam(username);
+        if (pwd == NULL) {
+            perror("getpwnam");
+            sleep(1);
+            continue;
+        }
+
+        // Копируем путь домашнего каталога в буфер
+        snprintf(buffer, sizeof(buffer), "%s", pwd->pw_dir);
+
+        // Записываем путь в канал
+        ssize_t bytes = write(pipefd[1], buffer, strlen(buffer) + 1);
+        // strlen(buffer) + 1 — чтобы записать также завершающий нуль строки
+
+        if (bytes == -1) 
+        {
+            // Если ошибка записи, но не EAGAIN (неблокирующий режим), выводим perror
+            if (errno != EAGAIN)
+                perror("write");
+        }
+
+        sleep(1); 
     }
-    return NULL;
+    return NULL; 
 }
 
+/* Второй поток — чтение данных из pipe и вывод их на экран */
+void* proc2(void* args) {
+    char buffer[256]; // буфер для чтения данных
 
-// Поток 2: читает данные из pipe и выводит их
-void* proc2(void *args)
-{
-    char buffer[256];  // Буфер для чтения данных
+    while (!flag2) 
+    { 
 
-    while (!flag2)
-    {
-        // Обнуляем буфер перед чтением
-        memset(buffer, 0, sizeof(buffer));
+        memset(buffer, 0, sizeof(buffer)); // очищаем буфер перед чтением
 
-        // Чтение данных из pipe
-        ssize_t n = read(pipefd[0], buffer, sizeof(buffer));
+        ssize_t bytes = read(pipefd[0], buffer, sizeof(buffer)); // читаем из канала
 
-        if (n > 0)
+        if (bytes > 0) 
         {
-            // Если успешно прочитали данные — выводим
-            printf("Домашний каталог: %s\n", buffer);
+            // Если прочитали данные — выводим
+            printf("Полученный домашний каталог: %s\n", buffer);
         }
-        else if (n == -1 && errno != EAGAIN)
+        else if (bytes == -1) 
         {
-            // Если произошла ошибка чтения,
-            // и она не связана с неблокирующим режимом
-            perror("Ошибка чтения");
+            // Если ошибка чтения, но не EAGAIN (неблокирующий режим), выводим perror
+            if (errno != EAGAIN)
+                perror("read");
         }
-        sleep(1);
+
+        sleep(1); 
     }
-
-    return NULL;
+    return NULL; 
 }
 
-int main (int args, char* argv[])
-{
-    pthread_t id1, id2;  // Идентификаторы потоков
-    int rv;              // Результат системных вызовов
+/* Главная функция */
+int main(int argc, char *argv[]) {
 
-    // Получаем имя пользователя из переменной окружения USER
-    username = getenv("USER");
+    pthread_t id1, id2; // идентификаторы потоков
+    int opt;            // переменная для обработки аргументов
+    int mode = 0;       // режим работы канала
 
-    // Если программа запущена без аргументов
-    if (args == 1)
+    /* Разбор аргументов командной строки через getopt */
+    while ((opt = getopt(argc, argv, "m:")) != -1) 
     {
-        // Создаём обычный pipe (блокирующий)
-        rv = pipe(pipefd);
-
-        // Переводим оба дескриптора в неблокирующий режим
-        // F_SETFL перезаписывает флаги, а не добавляет их
-        fcntl(pipefd[0], F_SETFL, O_NONBLOCK);
-        fcntl(pipefd[1], F_SETFL, O_NONBLOCK);
+        switch (opt) 
+        {
+            case 'm':
+                // Конвертируем аргумент -m в число
+                mode = atoi(optarg);
+                break;
+            default:
+                fprintf(stderr, "Использование: %s -m [1|2|3]\n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
     }
-    else
+
+    /* Инициализация канала в зависимости от выбранного режима */
+    switch (mode) 
     {
-        // Режим 1 — обычный pipe (блокирующий)
-        if (strcmp(argv[1], "1\0") == 0)
-        {
-            rv = pipe(pipefd);
-        }
 
-        // Режим 2 — pipe2 с флагом O_NONBLOCK
-        else if (strcmp(argv[1], "2\0") == 0)
-        {
-            rv = pipe2(pipefd, O_NONBLOCK);
-        }
+        case 1:   /* pipe() — блокирующий режим */
+            if (pipe(pipefd) == -1) 
+            { // создаем канал
+                perror("pipe");
+                exit(EXIT_FAILURE);
+            }
+            break;
 
-        // Режим 3 — pipe + ручная установка O_NONBLOCK
-        else if (strcmp(argv[1], "3\0") == 0)
-        {
-            rv = pipe(pipefd);
+        case 2:   /* pipe2() — неблокирующий режим */
+            if (pipe2(pipefd, O_NONBLOCK) == -1) 
+            { // создаемканал с O_NONBLOCK
+                perror("pipe2");
+                exit(EXIT_FAILURE);
+            }
+            break;
+
+        case 3:   /* pipe() + fcntl() — неблокирующий режим */
+            if (pipe(pipefd) == -1) 
+            { // создаем обычный блокирующий канал
+                perror("pipe");
+                exit(EXIT_FAILURE);
+            }
+            // Меняем флаги на неблокирующий режим для обоих концов
             fcntl(pipefd[0], F_SETFL, O_NONBLOCK);
             fcntl(pipefd[1], F_SETFL, O_NONBLOCK);
-        }
+            break;
+
+        default:
+            fprintf(stderr, "Необходимо указать режим: -m 1 | 2 | 3\n");
+            exit(EXIT_FAILURE);
     }
 
-    // Создание потоков:
-    // id1 выполняет proc1 (запись в pipe)
-    // id2 выполняет proc2 (чтение из pipe)
-    pthread_create(&id1, NULL, proc1, NULL);
-    pthread_create(&id2, NULL, proc2, NULL);
+    // Создаем два потока
+    pthread_create(&id1, NULL, proc1, NULL); // поток записи
+    pthread_create(&id2, NULL, proc2, NULL); // поток чтения
 
-    // Ожидание нажатия клавиши (блокирует главный поток)
+    // Ожидаем нажатия клавиши для завершения программы
     getchar();
+    puts("Клавиша нажата.\n");
 
-    puts("Клавиша нажата.\r\n");
-
-    // Устанавливаем флаги завершения потоков
+    // Устанавливаем флаги завершения для потоков
     flag1 = 1;
     flag2 = 1;
 
-    // Ожидание завершения потоков
-    pthread_join(id1,NULL);
-    pthread_join(id2,NULL);
+    // Дожидаемся завершения потоков
+    pthread_join(id1, NULL);
+    pthread_join(id2, NULL);
 
-    // Закрываем файловые дескрипторы pipe
+    // Закрываем каналы
     close(pipefd[0]);
     close(pipefd[1]);
 
