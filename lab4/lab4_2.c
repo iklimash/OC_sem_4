@@ -1,69 +1,89 @@
-#include <unistd.h>     // fork(), execlp(), getpid(), getppid(), sleep()
-#include <stdio.h>      // printf(), perror()
-#include <sys/wait.h>   // waitpid(), WIFEXITED(), WEXITSTATUS()
-#include <stdlib.h>     // exit()
+#include <unistd.h>     // POSIX функции: fork(), execlp(), getpid(), getppid(), sleep()
+#include <stdio.h>      // Стандартный ввод/вывод: printf(), perror()
+#include <sys/wait.h>   // Функции ожидания процессов: waitpid() и макросы WIFEXITED(), WEXITSTATUS()
+#include <stdlib.h>     // Общие функции: exit()
 
-int main(int argc, char *argv[]) {
 
-    // Проверка количества аргументов
-    if (argc < 3) {
+int main(int argc, char *argv[]) 
+{
+
+    // Проверяем количество аргументов командной строки
+    // По условию задания нужно передать минимум 2 аргумента дочерней программе
+    if (argc < 3) 
+    {
         printf("Ошибка: введите минимум 2 аргумента\n");
         printf("Пример запуска: ./lab4_2 16 11 2004\n");
-        return 1;
+        return 1;   
     }
 
-    // PID текущего процесса
+    // Вывод PID (Process ID) текущего процесса
     printf("ID процесса второй программы: %d\n", getpid());
 
-    // PID родителя
+    // Вывод PPID (Parent Process ID)
     printf("ID родительского процесса второй программы: %d\n", getppid());
 
     pid_t pid = fork();
 
-    if (pid == -1) {
+    if (pid == -1) 
+    {
         perror("Ошибка создания дочернего процесса");
         return 1;
     }
 
-    // Дочерний процесс
-    if (pid == 0) {
+    if (pid == 0) 
+    {
 
         printf("Запуск программы lab4_1\n");
 
-        execlp("lab4_1",   // имя без "./"
-               "lab4_1",   // argv[0]
-               argv[1],    // аргументы из командной строки
-               argv[2],
-               argv[3],
-               NULL);
+        execlp("lab4_1",   // имя программы (без "./", поиск через PATH)
+               "lab4_1",   // argv[0] новой программы
+               argv[1],    // первый аргумент из командной строки
+               argv[2],    // второй аргумент
+               argv[3],    // третий аргумент (если передан)
+               NULL);      // конец списка аргументов
 
+        // Если execlp() вернулся — значит произошла ошибка
         perror("Ошибка запуска программы");
+
         exit(1);
     }
 
-    // Родительский процесс
-    else {
+    else 
+    {
 
+        // pid содержит PID созданного дочернего процесса
         printf("ID дочернего процесса: %d\n", pid);
 
+        // status — переменная для хранения кода завершения дочернего процесса
         int status;
+
+        // переменная для результата waitpid()
         pid_t w;
 
-        // ожидание завершения дочернего процесса
-        while ((w = waitpid(pid, &status, WNOHANG)) == 0) {
+        // waitpid() ожидает завершения конкретного процесса
+        while ((w = waitpid(pid, &status, WNOHANG)) == 0) 
+        {
 
             printf("Ждем дочерний процесс...\n");
+
             sleep(1);
         }
 
-        if (w == -1) {
+        if (w == -1) 
+        {
             perror("Ошибка waitpid");
         }
-        else {
+        else 
+        {
 
-            if (WIFEXITED(status)) {
-                printf("Дочерний процесс завершился с кодом %d\n",
-                       WEXITSTATUS(status));
+            // Проверяем завершился ли процесс нормально
+            // (а не был остановлен сигналом)
+            if (WIFEXITED(status)) 
+            {
+
+                // Получаем код завершения дочернего процесса
+                // который был передан через exit()
+                printf("Дочерний процесс завершился с кодом %d\n", WEXITSTATUS(status));
             }
         }
     }
